@@ -2,9 +2,10 @@
 FastAPI REST API Server for Til Tumor Infiltrating Lymphocyte Scorer.
 """
 from typing import Dict, Any, List
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from .base import AuditLogger, PHIGuard
+from .metrics import GLOBAL_METRICS
 from .models import SystemTaskPayload, ConsensusDossier
 from .supervisor import SystemSupervisor
 
@@ -28,17 +29,19 @@ def health():
 
 @app.get("/metrics")
 def metrics():
-    return {
-        "dossiers_processed_total": len(supervisor.dossier_registry),
-        "audit_blocks_total": len(AuditLogger.get_trail()),
-        "system_status": "NOMINAL_OPTIMAL"
-    }
+    return Response(
+        content=GLOBAL_METRICS.export_prometheus_text(),
+        media_type="text/plain; version=0.0.4; charset=utf-8"
+    )
 
 
 @app.post("/api/audit")
 def api_audit(payload: SystemTaskPayload):
-    dossier = supervisor.process_task(payload)
-    return dossier.to_dict()
+    try:
+        dossier = supervisor.process_task(payload)
+        return dossier.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/chat")

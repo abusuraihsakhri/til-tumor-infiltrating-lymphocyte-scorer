@@ -51,34 +51,64 @@ License: MIT
 
 ## 💻 CLI Quickstart & Usage
 
-### 1. Guided Interactive Mode
+### Installation
 ```bash
-python cli.py
+pip install -r pyproject.toml
+# or for development:
+pip install -e ".[dev]"
 ```
 
-### 2. Direct Parameterized Evaluation
+### 1. Single Case Evaluation
 ```bash
-python cli.py --task-id <value> --target <value> --primary <value> --secondary <value>
+# Using til_scorer.py directly
+python til_scorer.py single --v1 14.5 --v2 4.2 --v3 1.8
+
+# Using the enterprise CLI with supervisor
+python cli.py audit --task-id TASK-001 --target SPECIMEN-01 --primary 28.5 --secondary 14.2
 ```
 
-### Parameter Reference
-- `--task-id`: Specifies input measurement or parameter value.
-- `--target`: Specifies input measurement or parameter value.
-- `--primary`: Specifies input measurement or parameter value.
-- `--secondary`: Specifies input measurement or parameter value.
-- `--critical`: Specifies input measurement or parameter value.
-- `--status`: Specifies input measurement or parameter value.
-- `--input`: Specifies input measurement or parameter value.
-- `--output`: Specifies input measurement or parameter value.
+### 2. Batch CSV Processing
+```bash
+# Using til_scorer.py
+python til_scorer.py batch -i sample.csv -o results.csv
 
-### Input Data Schema
+# Using the enterprise CLI
+python cli.py batch -i sample.csv -o results.csv
+```
+
+### Input Data Schema for Enterprise CLI Batch Mode
 
 | Field | Description | Requirement |
 |:------|:------------|:------------|
-| `Patient_ID` | Parameter / observation metric | Required |
-| `v1` | Parameter / observation metric | Required |
-| `v2` | Parameter / observation metric | Required |
-| `v3` | Parameter / observation metric | Required |
+| `task_id` | Unique task/case identifier | Required |
+| `target_identifier` | Entity or specimen identifier | Required |
+| `primary_metric` | Primary measurement value | Required |
+| `secondary_metric` | Secondary measurement value | Optional (default: 0.0) |
+| `status_descriptor` | Status code (e.g., NOMINAL, DISCORDANT_ANOMALY) | Optional (default: NOMINAL) |
+| `is_critical_flag` | Emergency escalation flag (true/false) | Optional (default: false) |
+
+### Input Data Schema for til_scorer.py Batch Mode
+
+| Field | Description | Requirement |
+|:------|:------------|:------------|
+| `v1` | Primary parameter | Required |
+| `v2` | Secondary parameter | Optional |
+| `v3` | Tertiary parameter | Optional |
+
+### 3. Verify Audit Trail Integrity
+```bash
+python cli.py verify-audit
+```
+
+### 4. Launch REST API Server
+```bash
+python cli.py serve --host 127.0.0.1 --port 8000
+```
+
+### 5. Chat with Supervisor
+```bash
+python cli.py chat "Explain the scoring methodology"
+```
 
 ---
 
@@ -100,10 +130,16 @@ Run the automated test suite:
 pytest -v
 ```
 
+Run with coverage:
+
+```bash
+pytest -v --cov=. --cov-report=term-missing
+```
+
 Execute high-throughput batch simulation benchmarks:
 
 ```bash
-python simulator.py --tasks 1000 --concurrency 8
+python simulator.py 1000
 ```
 
 ---

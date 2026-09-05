@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
-from agents.base import PHIGuard, AuditLogger, SecurityException
+from agents.base import PHIGuard, AuditLogger, AuditTrail, SecurityException
 from agents.models import SystemTaskPayload, UrgencyLevel, SystemIntegrityStatus
 from agents.workers import InvariantQCWorker, SafetyEscalationWorker, ProtocolConformanceWorker
 from agents.supervisor import SystemSupervisor
@@ -21,6 +21,27 @@ def test_phi_guard_enforcement():
 
     # Clean text passes
     PHIGuard.assert_no_phi("Analytical assay specimen KEY-001 optimal")
+
+
+def test_phi_guard_snsssn():
+    with pytest.raises(SecurityException):
+        PHIGuard.assert_no_phi("Patient SSN 123-45-6789")
+
+
+def test_phi_guard_email():
+    with pytest.raises(SecurityException):
+        PHIGuard.assert_no_phi("Contact patient@example.com for results")
+
+
+def test_phi_guard_empty():
+    PHIGuard.assert_no_phi("")
+    PHIGuard.assert_no_phi(None)
+
+
+def test_phi_redaction():
+    redacted = PHIGuard.redact_phi("Patient MRN-12345678 test")
+    assert "MRN-12345678" not in redacted
+    assert "[REDACTED_IDENTIFIER]" in redacted
 
 
 def test_specialized_workers():
@@ -63,3 +84,63 @@ def test_supervisor_consensus_and_audit():
     assert main(["audit", "--task-id", "CLI-TEST-01"]) == 0
     assert main(["chat", "Explain", "specifications"]) == 0
     assert main(["verify-audit"]) == 0
+
+
+def test_supervisor_critical_escalation():
+    supervisor = SystemSupervisor(model_provider="mock")
+    payload = SystemTaskPayload(
+        task_id="TASK-CRIT-01",
+        target_identifier="KEY-CRIT-01",
+        primary_metric=30.0,
+        secondary_metric=15.0,
+        status_descriptor="DISCORDANT_ANOMALY",
+        is_critical_flag=True
+    )
+    dossier = supervisor.process_task(payload)
+    assert dossier.overall_urgency == UrgencyLevel.CRITICAL_STAT
+    assert dossier.integrity_status == SystemIntegrityStatus.RECALIBRATION_REQUIRED
+    assert dossier.critical_alerts_count > 0
+
+
+def test_supervisor_elevated_escalation():
+    supervisor = SystemSupervisor(model_provider="mock")
+    payload = SystemTaskPayload(
+        task_id="TASK-ELEV-01",
+        target_identifier="KEY-ELEV-01",
+        primary_metric=30.0,
+        secondary_metric=5.0,
+        status_descriptor="NOMINAL"
+    )
+    dossier = supervisor.process_task(payload)
+    assert dossier.overall_urgency == UrgencyLevel.ELEVATED
+    assert dossier.integrity_status == SystemIntegrityStatus.DISCORDANT
+
+
+def test_audit_trail_integrity():
+    trail = AuditTrail(secret_key="test-key-123")
+    trail.log("actor1", "tier1", "EVENT_1", {"data": "value1"})
+    trail.log("actor2", "tier2", "EVENT_2", {"data": "value2"})
+    assert trail.verify_integrity() is True
+    assert len(trail.get_trail()) == 2
+
+
+def test_audit_trail_tamper_detection():
+    trail = AuditTrail(secret_key="test-key-456")
+    trail.log("actor1", "tier1", "EVENT_1", {"data": "value1"})
+    trail.log("actor2", "tier2", "EVENT_2", {"data": "value2"})
+    # Tamper with the first entry
+    trail.logs[0]["current_hash"] = "tampered_hash"
+    assert trail.verify_integrity() is False
+
+
+def test_cli_batch_file_not_found(tmp_path):
+    result = main(["batch", "-i", "/nonexistent/file.csv"])
+    assert result == 1
+
+
+def test_cli_batch_invalid_csv(tmp_path):
+    csv_in = tmp_path / "invalid.csv"
+    csv_out = tmp_path / "out.csv"
+    csv_in.write_text("", encoding="utf-8")
+    result = main(["batch", "-i", str(csv_in), "-o", str(csv_out)])
+    assert result == 1
