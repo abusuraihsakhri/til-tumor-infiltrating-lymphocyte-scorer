@@ -1,128 +1,108 @@
-#!/usr/bin/env python3
-"""
-Stromal TILs Immunotherapy Scorer
-Quantifies percentage stromal Tumor-Infiltrating Lymphocytes (sTILs) according to International Immuno-Oncology Guidelines.
+"""Manual stromal TIL area-fraction calculator.
 
-Zero-dependency Python implementation with single and batch evaluation.
-Author: Dr. Abu Suraih Sakhri
-License: MIT
+The caller supplies areas annotated by a qualified reviewer. This module does
+not identify cell types, segment tissue, or make treatment recommendations.
 """
 
 import argparse
 import csv
 import json
 import math
-import sys
-from typing import Dict, Any, List, Optional
+from pathlib import Path
 
 
-def calculate_metrics(**kwargs) -> Dict[str, Any]:
+def _area(value, name):
+    try:
+        result = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a finite number") from exc
+    if not math.isfinite(result):
+        raise ValueError(f"{name} must be a finite number")
+    return result
+
+
+def calculate_metrics(*, stromal_area, til_area):
+    """Calculate 100 × occupied stromal area / total eligible stromal area.
+
+    Values must use the same area unit. Stromal area must be positive and the
+    TIL-occupied area must lie between zero and that area (inclusive).
     """
-    Core domain algorithm for til-tumor-infiltrating-lymphocyte-scorer.
-    """
-    params = {}
-    for k, v in kwargs.items():
-        if v is not None:
-            try:
-                params[k] = float(v)
-            except (ValueError, TypeError):
-                params[k] = str(v)
-
-    # Deterministic domain logic
-    numeric_vals = [val for val in params.values() if isinstance(val, (int, float))]
-    primary_val = numeric_vals[0] if numeric_vals else 1.0
-
-    score = primary_val
-    for idx, nv in enumerate(numeric_vals[1:], start=2):
-        score += nv * (1.0 / idx)
-
-    rounded_score = round(score, 2)
-    
-    # Classification / tiering
-    if rounded_score < 10.0:
-        tier = "Low / Standard"
-        action = "Standard monitoring or negative cutoff"
-    elif rounded_score < 25.0:
-        tier = "Moderate / Intermediate"
-        action = "Close observation or secondary evaluation"
-    else:
-        tier = "High / Severe"
-        action = "Urgent clinical intervention or primary positive finding"
-
+    stromal = _area(stromal_area, "stromal_area")
+    occupied = _area(til_area, "til_area")
+    if stromal <= 0:
+        raise ValueError("stromal_area must be greater than zero")
+    if occupied < 0:
+        raise ValueError("til_area cannot be negative")
+    if occupied > stromal:
+        raise ValueError("til_area cannot exceed stromal_area")
+    percentage = round(100.0 * (occupied / stromal), 2)
     return {
         "tool": "til-tumor-infiltrating-lymphocyte-scorer",
-        "score": rounded_score,
-        "classification": tier,
-        "clinical_recommendation": action,
-        "inputs_evaluated": len(params),
+        "score": percentage,
+        "stromal_til_percent": percentage,
+        "classification": "Not assigned",
+        "clinical_recommendation": "No treatment recommendation or universal cutoff is inferred.",
+        "inputs_evaluated": 2,
     }
 
 
-def process_single(args) -> None:
-    kwargs = vars(args)
-    kwargs.pop("func", None)
-    res = calculate_metrics(**kwargs)
-    print(json.dumps(res, indent=2))
-
-
-def process_batch(input_csv: str, output_csv: str) -> None:
-    import os
-    if not os.path.isfile(input_csv):
-        raise FileNotFoundError(f"Input CSV not found: {input_csv}")
-
-    with open(input_csv, mode="r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        fieldnames = list(reader.fieldnames or [])
-        if not fieldnames:
-            raise ValueError(f"Input CSV is empty or has no headers: {input_csv}")
-        rows = list(reader)
-
-    out_fields = fieldnames + ["score", "classification", "clinical_recommendation"]
-    out_rows = []
-
-    for r in rows:
-        calc_res = calculate_metrics(**r)
-        row_dict = dict(r)
-        row_dict["score"] = calc_res["score"]
-        row_dict["classification"] = calc_res["classification"]
-        row_dict["clinical_recommendation"] = calc_res["clinical_recommendation"]
-        out_rows.append(row_dict)
-
-    out_dir = os.path.dirname(output_csv)
-    if out_dir and not os.path.isdir(out_dir):
-        os.makedirs(out_dir, exist_ok=True)
-
-    with open(output_csv, mode="w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=out_fields)
+def process_batch(input_csv, output_csv):
+    """Read CSV with stromal_area and til_area columns; fail on invalid rows."""
+    source = Path(input_csv)
+    if not source.is_file():
+        raise FileNotFoundError(f"Input CSV not found: {source}")
+    with source.open(encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        fields = list(reader.fieldnames or [])
+        if not fields:
+            raise ValueError("Input CSV is empty or has no headers")
+        if len(fields) != len(set(fields)):
+            raise ValueError("CSV contains duplicate headers")
+        required = {"stromal_area", "til_area"}
+        if not required.issubset(fields):
+            raise ValueError("CSV must contain stromal_area and til_area columns")
+        if "stromal_til_percent" in fields:
+            raise ValueError("Input CSV already contains stromal_til_percent")
+        out_rows = []
+        for row_number, row in enumerate(reader, start=2):
+            if None in row:
+                raise ValueError(f"CSV row {row_number} has extra fields")
+            try:
+                result = calculate_metrics(
+                    stromal_area=row["stromal_area"], til_area=row["til_area"]
+                )
+            except ValueError as exc:
+                raise ValueError(f"CSV row {row_number}: {exc}") from exc
+            out_rows.append({**row, "stromal_til_percent": result["score"]})
+    dest = Path(output_csv)
+    if source.resolve() == dest.resolve():
+        raise ValueError("Input and output CSV paths must differ")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with dest.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=[*fields, "stromal_til_percent"])
         writer.writeheader()
         writer.writerows(out_rows)
-
-    print(f"Processed {len(out_rows)} records -> {output_csv}")
+    print(f"Processed {len(out_rows)} records -> {dest}")
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Stromal TILs Immunotherapy Scorer")
+    parser = argparse.ArgumentParser(description="Manual stromal TIL area-percentage calculator")
     subparsers = parser.add_subparsers(dest="command", required=True)
-
-    # Single parser
-    single_parser = subparsers.add_parser("single", help="Evaluate single case")
-    single_parser.add_argument("--v1", type=float, default=10.0, help="Primary parameter")
-    single_parser.add_argument("--v2", type=float, default=5.0, help="Secondary parameter")
-    single_parser.add_argument("--v3", type=float, default=2.0, help="Tertiary parameter")
-    single_parser.set_defaults(func=process_single)
-
-    # Batch parser
-    batch_parser = subparsers.add_parser("batch", help="Process batch CSV")
-    batch_parser.add_argument("-i", "--input", required=True, help="Input CSV")
-    batch_parser.add_argument("-o", "--output", default="results.csv", help="Output CSV")
-
+    single = subparsers.add_parser("single", help="Score one annotated stromal area")
+    single.add_argument("--stromal-area", required=True, type=float)
+    single.add_argument("--til-area", required=True, type=float)
+    batch = subparsers.add_parser("batch", help="Score a CSV of annotated areas")
+    batch.add_argument("-i", "--input", required=True)
+    batch.add_argument("-o", "--output", default="results.csv")
     args = parser.parse_args(argv)
-
     if args.command == "single":
-        args.func(args)
-    elif args.command == "batch":
+        print(json.dumps(calculate_metrics(
+            stromal_area=args.stromal_area, til_area=args.til_area
+        ), indent=2, allow_nan=False))
+    else:
         process_batch(args.input, args.output)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

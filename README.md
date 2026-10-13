@@ -1,152 +1,41 @@
-# Til Tumor Infiltrating Lymphocyte Scorer
+# Stromal Tumor-Infiltrating Lymphocyte (TIL) Scorer
 
-> **Domain:** Digital Pathology & Quantitative Histopathology  
-> **Reference Guidelines & Standards:** `College of American Pathologists (CAP) Synoptic Protocols & DICOM WSI`
+A manual stromal TIL area-percentage calculator for research and pathology education. Enter the eligible intratumoral stromal area and the stromal area occupied by mononuclear inflammatory cells to calculate a **continuous percentage**. The interface supports single measurements and CSV batches.
 
-<div align="center">
+## Scoring method
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi&logoColor=white)
-![Audit Trail](https://img.shields.io/badge/Audit-HMAC--SHA256_Tamper--Evident-brightgreen.svg)
-![Zero-PHI Guard](https://img.shields.io/badge/Guard-Zero--PHI_Outbound-blue.svg)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)
+`stromal_til_percent = 100 × til_area / stromal_area`
 
-</div>
+Both inputs must use the same units; `stromal_area > 0` and `0 ≤ til_area ≤ stromal_area`. Areas must be identified and annotated by a qualified reviewer. The tool does **not** read whole-slide images, segment tissue, identify lymphocytes, estimate uncertainty, assign a validated prognostic threshold, or recommend therapy. A percentage of stromal area occupied by TILs is distinct from the proportion of stromal nuclei that are lymphocytes.
 
----
+When annotating, assess within the invasive tumor, across the eligible tumor area rather than hotspots. Exclude necrotic regions, crush artefact, biopsy-site changes, DCIS-associated and non-tumor stroma; include mononuclear cells (lymphocytes and plasma cells), not granulocytes. See [Salgado et al., 2015](https://pmc.ncbi.nlm.nih.gov/articles/PMC6267863/) and [Hendry et al., 2017](https://pmc.ncbi.nlm.nih.gov/articles/PMC5564448/).
 
-## 📖 What It Does
+## Browser application
 
-Stromal TILs Immunotherapy Scorer
-Quantifies percentage stromal Tumor-Infiltrating Lymphocytes (sTILs) according to International Immuno-Oncology Guidelines.
+Open `index.html` in a modern desktop or mobile browser, or use a verified GitHub Pages deployment if enabled. The page uses plain JavaScript with no network dependency, server requirement, Python interpreter, or external libraries. Uploaded CSVs are processed **entirely on-device**; nothing is transmitted or persisted by the app. Do not enter identifiable patient data.
 
-Zero-dependency Python implementation with single and batch evaluation.
-Author: Dr. Abu Suraih Sakhri
-License: MIT
+For CSV input, use column names `stromal_area,til_area` and optionally `sample_id` or other metadata; a `stromal_til_percent` column is added during export. Limit: 2 MB / 5,000 records. Invalid rows stop the batch rather than returning partial scores. Spreadsheet-leading formula characters in labels are escaped on export.
 
----
-
-## ⚙️ Key Capabilities & Algorithmic Modules
-
-### 🔬 Analytical Functions
-
-- **`calculate_metrics()`**: Core domain algorithm for til-tumor-infiltrating-lymphocyte-scorer.
-- **`process_single()`** — calculates and validates process_single parameters.
-- **`process_batch()`** — calculates and validates process_batch parameters.
-- **`main()`** — calculates and validates main parameters.
-
----
-
-## 📐 Mathematical Formulation & Logic
-
-```text
-  score = primary_val
-  rounded_score = round(score, 2)
-  res = calculate_metrics(**kwargs)
-  calc_res = calculate_metrics(**r)
-```
-
----
-
-## 💻 CLI Quickstart & Usage
-
-### Installation
-```bash
-pip install -r pyproject.toml
-# or for development:
-pip install -e ".[dev]"
-```
-
-### 1. Single Case Evaluation
-```bash
-# Using til_scorer.py directly
-python til_scorer.py single --v1 14.5 --v2 4.2 --v3 1.8
-
-# Using the enterprise CLI with supervisor
-python cli.py audit --task-id TASK-001 --target SPECIMEN-01 --primary 28.5 --secondary 14.2
-```
-
-### 2. Batch CSV Processing
-```bash
-# Using til_scorer.py
-python til_scorer.py batch -i sample.csv -o results.csv
-
-# Using the enterprise CLI
-python cli.py batch -i sample.csv -o results.csv
-```
-
-### Input Data Schema for Enterprise CLI Batch Mode
-
-| Field | Description | Requirement |
-|:------|:------------|:------------|
-| `task_id` | Unique task/case identifier | Required |
-| `target_identifier` | Entity or specimen identifier | Required |
-| `primary_metric` | Primary measurement value | Required |
-| `secondary_metric` | Secondary measurement value | Optional (default: 0.0) |
-| `status_descriptor` | Status code (e.g., NOMINAL, DISCORDANT_ANOMALY) | Optional (default: NOMINAL) |
-| `is_critical_flag` | Emergency escalation flag (true/false) | Optional (default: false) |
-
-### Input Data Schema for til_scorer.py Batch Mode
-
-| Field | Description | Requirement |
-|:------|:------------|:------------|
-| `v1` | Primary parameter | Required |
-| `v2` | Secondary parameter | Optional |
-| `v3` | Tertiary parameter | Optional |
-
-### 3. Verify Audit Trail Integrity
-```bash
-python cli.py verify-audit
-```
-
-### 4. Launch REST API Server
-```bash
-python cli.py serve --host 127.0.0.1 --port 8000
-```
-
-### 5. Chat with Supervisor
-```bash
-python cli.py chat "Explain the scoring methodology"
-```
-
----
-
-## 🛡️ Security & Enterprise Architecture
-
-* **Zero-PHI Outbound Interceptor:** Active AST and regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers.
-* **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation and state transition.
-* **Air-Gapped LLM Reasoning Adapter:** Agnostic integration for local Ollama instances (`llama3`, `mistral`), Claude 3.5 Sonnet, GPT-4o, and deterministic test mocks.
-* **Active Learning Bayesian Calibration:** Dynamic tracker updating worker reliability weights and monitoring Brier calibration drift.
-* **FastAPI & Prometheus Telemetry:** Exposes OpenAPI 3.1 REST endpoints and operational Prometheus metrics (`/metrics`).
-
----
-
-## 🧪 Testing & Verification
-
-Run the automated test suite:
+## Python CLI
 
 ```bash
-pytest -v
+python -m pip install -e '.[dev]'
+til-scorer single --stromal-area 200 --til-area 50
+til-scorer batch -i sample.csv -o results.csv
+python -m pytest
+node --test tests/browser.test.cjs
 ```
 
-Run with coverage:
+Alternatively run `python til_scorer.py single --stromal-area 200 --til-area 50`. The old generic `v1/v2/v3` weighted-sum interface has been replaced because it did not calculate a valid stromal TIL percentage. Scores are returned as percentages with two decimal places.
 
-```bash
-pytest -v --cov=. --cov-report=term-missing
-```
+## API and separate legacy demonstration
 
-Execute high-throughput batch simulation benchmarks:
+`python cli.py serve --host 127.0.0.1 --port 8000` starts FastAPI. The app is served at `/`; `POST /api/score` accepts JSON such as `{"stromal_area":200,"til_area":50}`. The historical `til-audit-demo`/`cli.py audit` and `/api/audit` endpoints are retained for compatibility, **but their generic thresholds, urgency labels, mock chat, and in-memory audit trail are synthetic demonstrations—not clinical scoring, guideline compliance, emergency triage, or an externally validated security/PHI control**. Do not expose that API directly to untrusted networks. The audit log endpoint requires the `AUDIT_LOGS_TOKEN` environment variable and matching `X-Audit-Token` header. Audit records are in memory only; without a persistent key and secure storage they are not durable evidence.
 
-```bash
-python simulator.py 1000
-```
+## Development and deployment
 
----
+Python ≥3.10 is supported. Tests run with pytest and Node (Node ≥18); `python -m build --wheel` builds the distributable package. Docker starts the optional FastAPI server. The static browser app is suitable for GitHub Pages; `.github/workflows/pages.yml` publishes from `master` when Pages is configured to use **GitHub Actions**. A working live URL should be linked here only after deployment is verified. The browser calculation itself requires no Pyodide/PyScript.
 
-## 🐳 Container Deployment
+## License
 
-```bash
-docker build -t til-tumor-infiltrating-lymphocyte-scorer .
-docker run -p 8000:8000 til-tumor-infiltrating-lymphocyte-scorer
-```
+MIT — see [LICENSE](LICENSE).
