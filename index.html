@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Local manual stromal tumor-infiltrating lymphocyte area-percentage calculator and CSV processor.">
+  <title>Stromal TIL Scorer | Manual Area Percentage</title>
+  <style>
+    :root { color-scheme:dark; font:16px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:#0b111b; color:#e9edf4; }
+    * { box-sizing:border-box; }
+    body { margin:0; }
+    main { width:min(1050px,calc(100% - 32px)); margin:0 auto; padding:45px 0 32px; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { font-size:clamp(1.7rem,3.5vw,2.5rem); letter-spacing:-.035em; line-height:1.13; margin-bottom:16px; }
+    h2 { font-size:1.13rem; margin-bottom:10px; }
+    p,li { color:#bac5d6; }
+    .eyebrow { color:#91b7ef; text-transform:uppercase; letter-spacing:.13em; font-size:.78rem; font-weight:700; margin-bottom:13px; }
+    .intro { max-width:760px; margin-bottom:25px; }
+    .intro p { margin:0; }
+    .layout { display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:stretch; }
+    .card { background:#121c2b; border:1px solid #2a394e; border-radius:15px; padding:24px; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:22px 0 17px; }
+    label { display:block; color:#e2e8f2; font-weight:600; font-size:.87rem; margin-bottom:8px; }
+    .hint { font-size:.79rem; margin-top:7px; }
+    input[type=number], input[type=file] { width:100%; border:1px solid #61728e; border-radius:9px; color:#f4f6fa; background:#0b1523; padding:11px; font:inherit; }
+    input[type=file] { font-size:.86rem; }
+    input:focus-visible,button:focus-visible,a:focus-visible { outline:3px solid #9ecaff; outline-offset:3px; }
+    button { padding:12px 17px; border:0; border-radius:9px; font:600 .94rem system-ui,sans-serif; cursor:pointer; background:#80aff7; color:#061527; }
+    button:hover { background:#a1c5ff; }
+    button:disabled { opacity:.45; cursor:not-allowed; }
+    .result { border-top:1px solid #2c3c50; margin-top:22px; padding-top:17px; }
+    .value { font-size:2.75rem; font-weight:750; letter-spacing:-.04em; line-height:1.2; color:#abdbcf; }
+    .status { min-height:43px; margin:10px 0 0; font-size:.86rem; }
+    .secondary { background:#1e3049; color:#edf3fd; }
+    .secondary:hover { background:#304866; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+    .guide { background:#101a28; border:1px solid #29374a; border-radius:14px; padding:23px 25px; margin-top:18px; }
+    .guide ul { padding-left:22px; margin:8px 0; }
+    .guide li { margin:6px 0; }
+    code { background:#1d2d41; border-radius:5px; padding:2px 5px; font-size:.89em; color:#dae8f9; }
+    .small { font-size:.87rem; }
+    footer { border-top:1px solid #28384c; padding:22px 0 6px; margin-top:28px; color:#a5b4ca; font-size:.82rem; }
+    a { color:#9ac5ff; }
+    @media(max-width:730px) { main{padding-top:24px;} .layout,.form-row{grid-template-columns:1fr;} .card{padding:20px;} }
+  </style>
+  <script src="web/scorer.js" defer></script>
+  <script src="web/app.js" defer></script>
+</head>
+<body>
+<main>
+  <header class="intro">
+    <div class="eyebrow">Digital pathology · Manual scoring utility</div>
+    <h1>Stromal tumor-infiltrating lymphocyte scorer</h1>
+    <p>Calculate a stromal TIL percentage from <strong>reviewer-defined, eligible stromal area</strong> and the area assessed as occupied by mononuclear inflammatory cells. This is not an image segmentation system or a diagnostic decision tool.</p>
+  </header>
+  <section class="layout" aria-label="Scoring tools">
+    <article class="card">
+      <h2>Single sample</h2>
+      <p class="small">Use matching units (µm², mm², or annotated pixels). The numerator must lie within the denominator.</p>
+      <form id="single-form">
+        <div class="form-row">
+          <div><label for="stromal-area">Eligible stromal area</label><input id="stromal-area" name="stromal_area" type="number" min="0" step="any" value="200" required><div class="hint">Area within the invasive tumor</div></div>
+          <div><label for="til-area">Area occupied by TILs</label><input id="til-area" name="til_area" type="number" min="0" step="any" value="50" required><div class="hint">Mononuclear infiltrate only</div></div>
+        </div>
+        <button type="submit">Calculate stromal TIL %</button>
+      </form>
+      <div class="result" aria-live="polite">
+        <div class="hint">Stromal TIL percentage</div>
+        <div class="value" id="result">—</div>
+        <p class="status" id="single-message" role="status"></p>
+      </div>
+    </article>
+    <article class="card">
+      <h2>Batch CSV processing</h2>
+      <p class="small">Upload up to 5,000 cases (2 MB). Files remain in this browser. The exported CSV retains your columns and adds <code>stromal_til_percent</code>.</p>
+      <form id="batch-form">
+        <label for="csv-file">Input CSV file</label>
+        <input id="csv-file" type="file" accept=".csv,text/csv" required>
+        <p class="small" style="margin:12px 0 6px">Required header names:</p>
+        <code>sample_id,stromal_area,til_area</code>
+        <div class="actions"><button type="submit">Validate and calculate</button><button type="button" class="secondary" id="download" disabled>Export scored CSV</button></div>
+      </form>
+      <p class="status" id="batch-message" role="status" aria-live="polite"></p>
+    </article>
+  </section>
+  <section class="guide" aria-labelledby="methodology">
+    <h2 id="methodology">Method and scope</h2>
+    <p class="small">Stromal TILs (%) = 100 × TIL-occupied stromal area / total eligible intratumoral stromal area. The tool performs arithmetic on supplied annotations; it does not determine the validity of the annotated areas.</p>
+    <ul class="small">
+      <li>Assess the stromal compartment within invasive tumor borders, averaging across the assessed tumor rather than selecting hotspots.</li>
+      <li>Include lymphocytes and plasma cells; exclude granulocytes, necrosis, crush artefact, biopsy-site change, DCIS-associated stroma, and normal structures as applicable.</li>
+      <li>Report the continuous percentage. No universal high/low cutoff, clinical urgency classification, or treatment recommendation is derived.</li>
+    </ul>
+    <p class="small" style="margin-bottom:0">Methodology: <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC6267863/" target="_blank" rel="noopener noreferrer">International TILs Working Group (2014)</a> and <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5564448/" target="_blank" rel="noopener noreferrer">International Immuno-Oncology Biomarkers Working Group (2017)</a>.</p>
+  </section>
+  <footer>All calculations and file processing are performed locally in your browser. Do not enter identifiable patient information. Research and education only; not validated for standalone clinical decisions.</footer>
+</main>
+</body>
+</html>

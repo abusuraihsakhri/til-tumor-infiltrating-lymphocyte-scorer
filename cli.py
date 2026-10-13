@@ -17,7 +17,7 @@ def main(argv=None):
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Audit
-    p_audit = subparsers.add_parser("audit", help="Run single task evaluation")
+    p_audit = subparsers.add_parser("audit", help="Run synthetic threshold demo (not clinical scoring)")
     p_audit.add_argument("--task-id", default="TASK-2026-001")
     p_audit.add_argument("--target", default="KEY-TARGET-01")
     p_audit.add_argument("--primary", type=float, default=28.5)
@@ -56,7 +56,7 @@ def main(argv=None):
         dossier = supervisor.process_task(payload)
         print("=" * 80)
         print(f"  TIL TUMOR INFILTRATING LYMPHOCYTE SCORER")
-        print(f"  Domain: Clinical & Biomedical AI | Standard: CAP / CLSI / ISO Standards")
+        print(f"  Synthetic demonstration only; not a clinical TIL score")
         print(f"  Dossier ID: {dossier.dossier_id} | Urgency: [{dossier.overall_urgency.value}]")
         print("=" * 80)
         for a in dossier.alerts:

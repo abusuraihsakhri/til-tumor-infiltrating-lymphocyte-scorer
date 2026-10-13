@@ -1,20 +1,18 @@
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "til-tumor-infiltrating-lymphocyte-scorer"
-version = "3.0.0"
-description = "Stromal TILs Immunotherapy Scorer - Quantifies percentage stromal Tumor-Infiltrating Lymphocytes (sTILs) according to International Immuno-Oncology Guidelines."
+version = "3.1.0"
+description = "Manual stromal tumor-infiltrating lymphocyte area-percentage calculator with a demo audit API"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
-authors = [
-    {name = "Dr. Abu Suraih Sakhri"}
-]
+authors = [{name = "Dr. Abu Suraih Sakhri"}]
 classifiers = [
     "Development Status :: 4 - Beta",
-    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -22,20 +20,17 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
-dependencies = [
-    "fastapi>=0.111.0",
-    "uvicorn[standard]>=0.29.0",
-    "pydantic>=2.0.0",
-]
+dependencies = ["fastapi>=0.111", "uvicorn[standard]>=0.29", "pydantic>=2"]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-cov>=5.0.0",
-]
+dev = ["pytest>=8", "pytest-cov>=5", "httpx>=0.27"]
 
 [project.scripts]
-til-scorer = "cli:main"
+til-scorer = "til_scorer:main"
+til-audit-demo = "cli:main"
+
+[tool.setuptools]
+py-modules = ["til_scorer", "cli", "enrichment", "simulator"]
 
 [tool.setuptools.packages.find]
 include = ["agents*"]
